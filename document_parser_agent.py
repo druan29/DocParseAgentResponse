@@ -58,6 +58,8 @@ class DocumentParserAgent:
         self.endpoint = os.getenv("AZURE_OPENAI_ENDPOINT")
         self.api_key = os.getenv("AZURE_OPENAI_API_KEY")
         self.deployment = os.getenv("AZURE_OPENAI_DEPLOYMENT", "gpt-4o")
+        # Note: Using preview API version for structured output support.
+        # For production use, consider using a stable API version when available.
         self.api_version = os.getenv("AZURE_OPENAI_API_VERSION", "2024-08-01-preview")
         
         if not all([self.endpoint, self.api_key]):
@@ -211,9 +213,17 @@ Extract: invoice number, date, customer information, line items, totals, and pay
             agent_id=self.agent.id
         )
         
-        # Wait for completion
+        # Wait for completion with timeout
+        max_retries = 60  # Maximum 60 seconds
+        retry_count = 0
         while run.status in [RunStatus.QUEUED, RunStatus.IN_PROGRESS]:
+            if retry_count >= max_retries:
+                raise TimeoutError(
+                    f"Agent run timed out after {max_retries} seconds. "
+                    f"Run ID: {run.id}, Status: {run.status}"
+                )
             time.sleep(1)
+            retry_count += 1
             run = self.agents_client.get_run(
                 thread_id=self.thread.id,
                 run_id=run.id
