@@ -23,6 +23,7 @@ from azure.ai.agents.models import (
 import openai
 import json
 import time
+import textwrap
 
 # Load environment variables
 load_dotenv()
@@ -85,9 +86,11 @@ class DocumentParserAgent:
     def create_agent(self, name: str = "Document Parser", instructions: str = None):
         """Create an AI agent for document parsing"""
         if instructions is None:
-            instructions = """You are a document parser agent. Your task is to extract 
-            structured information from documents. Analyze the document content carefully 
-            and extract all relevant information according to the specified schema."""
+            instructions = textwrap.dedent("""
+                You are a document parser agent. Your task is to extract 
+                structured information from documents. Analyze the document content carefully 
+                and extract all relevant information according to the specified schema.
+            """).strip()
         
         self.agent = self.agents_client.create_agent(
             model=self.deployment,
@@ -133,13 +136,15 @@ class DocumentParserAgent:
         print(f"{'='*60}\n")
         
         # Prepare the prompt
-        prompt = f"""Parse the following invoice document and extract all relevant information 
-        into a structured format. Be precise with numbers and dates.
+        prompt = textwrap.dedent(f"""
+            Parse the following invoice document and extract all relevant information 
+            into a structured format. Be precise with numbers and dates.
 
-Document content:
-{document_content}
+            Document content:
+            {document_content}
 
-Extract the invoice information according to the provided schema."""
+            Extract the invoice information according to the provided schema.
+        """).strip()
         
         # Use Response API with structured output
         completion = self.client.chat.completions.create(
