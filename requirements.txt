@@ -1,0 +1,15 @@
+# Microsoft Agent Framework SDK
+azure-ai-agents==0.1.0
+
+# Azure OpenAI
+openai>=1.55.0
+
+# Document processing
+Pillow>=10.0.0
+pypdf>=3.17.0
+
+# Environment configuration
+python-dotenv>=1.0.0
+
+# Pydantic for structured outputs
+pydantic>=2.0.0
