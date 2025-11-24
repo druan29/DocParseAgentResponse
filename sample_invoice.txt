@@ -1,0 +1,39 @@
+INVOICE
+
+Invoice Number: INV-2024-001
+Date: November 24, 2024
+
+BILL TO:
+Acme Corporation
+123 Business Street
+Seattle, WA 98101
+contact@acmecorp.com
+
+INVOICE DETAILS:
+
+Item                        Quantity    Unit Price    Total
+---------------------------------------------------------------
+Software License            5           $299.00       $1,495.00
+Technical Support           12 months   $99.00        $1,188.00
+Training Sessions           3           $500.00       $1,500.00
+---------------------------------------------------------------
+
+Subtotal:                                             $4,183.00
+Tax (10%):                                            $418.30
+---------------------------------------------------------------
+TOTAL DUE:                                            $4,601.30
+
+Payment Terms: Net 30 days
+Due Date: December 24, 2024
+
+Payment Methods:
+- Bank Transfer to Account: 1234567890
+- Check payable to: Tech Solutions Inc.
+
+Thank you for your business!
+
+Tech Solutions Inc.
+456 Tech Avenue
+San Francisco, CA 94102
+billing@techsolutions.com
+Phone: (555) 123-4567
