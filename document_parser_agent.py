@@ -23,6 +23,7 @@ from azure.ai.agents.models import (
 import openai
 import json
 import time
+from pypdf import PdfReader
 
 # Load environment variables
 load_dotenv()
@@ -109,11 +110,32 @@ class DocumentParserAgent:
         return self.thread
     
     def read_document(self, file_path: str) -> str:
-        """Read document content from file"""
+        """
+        Read document content from file (supports .txt and .pdf)
+        
+        Args:
+            file_path: Path to the document file
+            
+        Returns:
+            str: Extracted text content from the document
+            
+        Raises:
+            FileNotFoundError: If the document file does not exist
+            ValueError: If the PDF cannot be read or is corrupted
+        """
         path = Path(file_path)
         if not path.exists():
             raise FileNotFoundError(f"Document not found: {file_path}")
         
+        # Handle PDF files
+        if path.suffix.lower() == '.pdf':
+            try:
+                reader = PdfReader(path)
+                return '\n'.join(page.extract_text() for page in reader.pages)
+            except Exception as e:
+                raise ValueError(f"Failed to read PDF file '{file_path}': {str(e)}")
+        
+        # Handle text files
         with open(path, 'r', encoding='utf-8') as f:
             return f.read()
     
@@ -272,7 +294,7 @@ def main():
     agent = DocumentParserAgent()
     
     # Path to sample document
-    document_path = "sample_invoice.txt"
+    document_path = "sample_invoice.pdf"
     
     try:
         # Method 1: Using Response API with structured output (Recommended)

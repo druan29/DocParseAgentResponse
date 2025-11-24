@@ -56,7 +56,7 @@ python document_parser_agent.py
 ```
 
 The script will:
-1. Load the sample invoice document (`sample_invoice.txt`)
+1. Load the sample invoice document (`sample_invoice.pdf`)
 2. Parse it using Azure OpenAI Response API with structured output
 3. Extract invoice details into a structured format
 4. Display the parsed results
@@ -67,7 +67,7 @@ The script will:
 ```
 DocParseAgentResponse/
 ├── document_parser_agent.py    # Main agent implementation
-├── sample_invoice.txt           # Sample document for parsing
+├── sample_invoice.pdf           # Sample document for parsing
 ├── requirements.txt             # Python dependencies
 ├── .env.example                 # Environment variables template
 ├── .gitignore                   # Git ignore rules
