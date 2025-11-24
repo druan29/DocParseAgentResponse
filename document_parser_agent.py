@@ -118,11 +118,8 @@ class DocumentParserAgent:
         # Check file extension to determine how to read it
         if path.suffix.lower() == '.pdf':
             # Read PDF file
-            reader = PdfReader(str(path))
-            text_content = []
-            for page in reader.pages:
-                text_content.append(page.extract_text())
-            return '\n'.join(text_content)
+            reader = PdfReader(path)
+            return '\n'.join(page.extract_text() for page in reader.pages)
         else:
             # Read as text file
             with open(path, 'r', encoding='utf-8') as f:
