@@ -110,18 +110,33 @@ class DocumentParserAgent:
         return self.thread
     
     def read_document(self, file_path: str) -> str:
-        """Read document content from file (supports .txt and .pdf)"""
+        """
+        Read document content from file (supports .txt and .pdf)
+        
+        Args:
+            file_path: Path to the document file
+            
+        Returns:
+            str: Extracted text content from the document
+            
+        Raises:
+            FileNotFoundError: If the document file does not exist
+            ValueError: If the PDF cannot be read or is corrupted
+        """
         path = Path(file_path)
         if not path.exists():
             raise FileNotFoundError(f"Document not found: {file_path}")
         
         # Handle PDF files
         if path.suffix.lower() == '.pdf':
-            reader = PdfReader(path)
-            text_content = []
-            for page in reader.pages:
-                text_content.append(page.extract_text())
-            return '\n'.join(text_content)
+            try:
+                reader = PdfReader(path)
+                text_content = []
+                for page in reader.pages:
+                    text_content.append(page.extract_text())
+                return '\n'.join(text_content)
+            except Exception as e:
+                raise ValueError(f"Failed to read PDF file '{file_path}': {str(e)}")
         
         # Handle text files
         with open(path, 'r', encoding='utf-8') as f:
