@@ -131,10 +131,7 @@ class DocumentParserAgent:
         if path.suffix.lower() == '.pdf':
             try:
                 reader = PdfReader(path)
-                text_content = []
-                for page in reader.pages:
-                    text_content.append(page.extract_text())
-                return '\n'.join(text_content)
+                return '\n'.join(page.extract_text() for page in reader.pages)
             except Exception as e:
                 raise ValueError(f"Failed to read PDF file '{file_path}': {str(e)}")
         
