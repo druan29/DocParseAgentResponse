@@ -1,20 +1,22 @@
 # Document Parser Agent with Microsoft Agent Framework
 
-Sample code demonstrating how to create an AI agent using the Microsoft Agent Framework SDK to extract structured information from documents using Azure OpenAI's multimodal model (gpt-4o) with Response API.
+Sample code demonstrating how to create an AI agent using the Microsoft Agent Framework SDK to extract structured information from documents using Azure OpenAI's multimodal model (gpt-4o) with **Responses API** - enabling direct PDF file input without text extraction.
 
 ## Features
 
+- **Direct PDF Input**: Feed PDF files directly to the model via Responses API (no text extraction needed)
 - **Microsoft Agent Framework SDK**: Uses the official Azure AI Agents SDK for Python
-- **Azure OpenAI Integration**: Leverages GPT-4o multimodal model with Response API
+- **Azure OpenAI Responses API**: Leverages the new Responses API for multimodal document processing
 - **Structured Outputs**: Extracts information into well-defined Pydantic models
-- **Two Approaches**: Demonstrates both Response API and Agent Framework methods
-- **Document Parsing**: Processes text documents and extracts structured data (e.g., invoices)
+- **Three Approaches**: Demonstrates Responses API (direct PDF), Chat Completions, and Agent Framework methods
+- **Document Parsing**: Processes PDF documents and extracts structured data (e.g., invoices)
 
 ## Requirements
 
 - Python 3.8 or higher
 - Azure OpenAI account with GPT-4o deployment
 - Microsoft Agent Framework SDK access
+- Azure OpenAI API version `2025-03-01-preview` or later (required for Responses API)
 
 ## Installation
 
@@ -45,7 +47,7 @@ Edit `.env` and add your Azure OpenAI credentials:
 AZURE_OPENAI_ENDPOINT=https://your-resource-name.openai.azure.com/
 AZURE_OPENAI_API_KEY=your-api-key-here
 AZURE_OPENAI_DEPLOYMENT=gpt-4o
-AZURE_OPENAI_API_VERSION=2024-08-01-preview
+AZURE_OPENAI_API_VERSION=2025-03-01-preview
 ```
 
 ## Usage
@@ -57,10 +59,10 @@ python document_parser_agent.py
 
 The script will:
 1. Load the sample invoice document (`sample_invoice.pdf`)
-2. Parse it using Azure OpenAI Response API with structured output
+2. **Parse it using Azure OpenAI Responses API with direct PDF input** (recommended)
 3. Extract invoice details into a structured format
 4. Display the parsed results
-5. Optionally demonstrate parsing using the Agent Framework approach
+5. Demonstrate alternative approaches (Chat Completions and Agent Framework)
 
 ## Project Structure
 
@@ -83,7 +85,9 @@ The main class that implements document parsing functionality:
 - `__init__()`: Initializes Azure OpenAI and Agent Framework clients
 - `create_agent()`: Creates an AI agent with specific instructions
 - `create_thread()`: Creates a conversation thread for the agent
-- `parse_document_with_response_api()`: Parses documents using Response API with structured output (recommended)
+- `encode_pdf_to_base64()`: Encodes PDF files to base64 for direct API input
+- `parse_pdf_with_responses_api()`: **Parses PDFs using Responses API with direct file input (recommended)**
+- `parse_document_with_chat_completions()`: Parses documents using Chat Completions API (text extraction)
 - `parse_document_with_agent()`: Parses documents using the Agent Framework
 - `cleanup()`: Cleans up resources
 
@@ -94,10 +98,38 @@ The code uses Pydantic models to define the structure of extracted data:
 - `InvoiceData`: Main model for invoice information
 - `InvoiceItem`: Model for individual line items
 
-### Two Parsing Approaches
+### Three Parsing Approaches
 
-1. **Response API (Recommended)**: Uses Azure OpenAI's structured output feature for precise JSON extraction
-2. **Agent Framework**: Uses the Microsoft Agent Framework for more complex agent-based workflows
+1. **Responses API with Direct PDF Input (Recommended)**: 
+   - Uses `client.responses.create()` with direct PDF file input via base64 encoding
+   - No text extraction needed - model processes the PDF directly
+   - Supports visual elements (tables, charts, images) in PDFs
+   - Best for multimodal document processing
+
+2. **Chat Completions API**: 
+   - Traditional approach using `chat.completions.create()`
+   - Requires text extraction from PDF first
+   - Good for text-heavy documents
+
+3. **Agent Framework**: 
+   - Uses Microsoft Agent Framework for complex agent-based workflows
+   - Supports multi-turn conversations and tool use
+
+## Direct PDF Input Example
+
+```python
+from document_parser_agent import DocumentParserAgent
+
+# Initialize the agent
+agent = DocumentParserAgent()
+
+# Parse PDF directly with Responses API - no text extraction needed!
+invoice_data = agent.parse_pdf_with_responses_api("sample_invoice.pdf")
+
+# Access structured data
+print(f"Invoice #: {invoice_data.invoice_number}")
+print(f"Total: ${invoice_data.total:,.2f}")
+```
 
 ## Example Output
 
@@ -142,7 +174,7 @@ The code uses Pydantic models to define the structure of extracted data:
 To parse different document types:
 
 1. Define a new Pydantic model for your document structure
-2. Update the schema in `parse_document_with_response_api()`
+2. Update the schema in `parse_pdf_with_responses_api()`
 3. Adjust the prompt to match your document type
 
 Example:
@@ -152,6 +184,12 @@ class ReceiptData(BaseModel):
     date: str
     items: List[ReceiptItem]
     total: float
+
+# Use with custom prompt
+receipt_data = agent.parse_pdf_with_responses_api(
+    "receipt.pdf",
+    prompt="Parse this receipt and extract store name, date, items, and total."
+)
 ```
 
 ### Modifying Agent Instructions
@@ -182,9 +220,10 @@ The script includes error handling for common scenarios:
 ### Common Issues
 
 1. **Missing credentials**: Ensure `.env` file is properly configured
-2. **API version mismatch**: Update `AZURE_OPENAI_API_VERSION` if needed
+2. **API version mismatch**: Responses API requires `2025-03-01-preview` or later
 3. **Model not found**: Verify your deployment name matches `AZURE_OPENAI_DEPLOYMENT`
 4. **Import errors**: Ensure all dependencies are installed with `pip install -r requirements.txt`
+5. **PDF too large**: Maximum file size is 512MB, maximum 100 pages
 
 ## Contributing
 
@@ -196,6 +235,7 @@ This project is provided as-is for educational and demonstration purposes.
 
 ## Resources
 
+- [Azure OpenAI Responses API](https://learn.microsoft.com/en-us/azure/ai-foundry/openai/how-to/responses)
 - [Microsoft Agent Framework Documentation](https://learn.microsoft.com/en-us/azure/ai-services/agents/)
 - [Azure OpenAI Service](https://learn.microsoft.com/en-us/azure/ai-services/openai/)
 - [Pydantic Documentation](https://docs.pydantic.dev/)

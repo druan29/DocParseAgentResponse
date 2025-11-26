@@ -2,7 +2,12 @@
 Document Parser Agent using Microsoft Agent Framework
 
 This script demonstrates how to create an agent that extracts structured information
-from documents using Azure OpenAI's gpt-4o multimodal model with Response API.
+from documents using Azure OpenAI's gpt-4o multimodal model with Responses API.
+
+Features:
+- Direct PDF file input via Responses API (no text extraction needed)
+- Structured output using Pydantic models
+- Microsoft Agent Framework integration
 """
 
 import os
@@ -11,12 +16,9 @@ from pathlib import Path
 from typing import List, Optional
 from pydantic import BaseModel, Field
 from dotenv import load_dotenv
-from azure.ai.agents import AIAgentsClient
+from azure.ai.agents import AgentsClient
 from azure.core.credentials import AzureKeyCredential
 from azure.ai.agents.models import (
-    Agent,
-    AgentThread,
-    ThreadRun,
     MessageTextContent,
     RunStatus,
 )
@@ -59,9 +61,9 @@ class DocumentParserAgent:
         self.endpoint = os.getenv("AZURE_OPENAI_ENDPOINT")
         self.api_key = os.getenv("AZURE_OPENAI_API_KEY")
         self.deployment = os.getenv("AZURE_OPENAI_DEPLOYMENT", "gpt-4o")
-        # Note: Using preview API version for structured output support.
-        # For production use, consider using a stable API version when available.
-        self.api_version = os.getenv("AZURE_OPENAI_API_VERSION", "2024-08-01-preview")
+        # Note: Using preview API version for Responses API support.
+        # Responses API requires 2025-03-01-preview or later
+        self.api_version = os.getenv("AZURE_OPENAI_API_VERSION", "2025-03-01-preview")
         
         if not all([self.endpoint, self.api_key]):
             raise ValueError(
@@ -69,7 +71,7 @@ class DocumentParserAgent:
                 "Please set AZURE_OPENAI_ENDPOINT and AZURE_OPENAI_API_KEY"
             )
         
-        # Initialize Azure OpenAI client for Response API
+        # Initialize Azure OpenAI client for Responses API
         self.client = openai.AzureOpenAI(
             azure_endpoint=self.endpoint,
             api_key=self.api_key,
@@ -77,7 +79,7 @@ class DocumentParserAgent:
         )
         
         # Initialize AI Agents client
-        self.agents_client = AIAgentsClient(
+        self.agents_client = AgentsClient(
             endpoint=self.endpoint,
             credential=AzureKeyCredential(self.api_key)
         )
@@ -139,12 +141,121 @@ class DocumentParserAgent:
         with open(path, 'r', encoding='utf-8') as f:
             return f.read()
     
-    def parse_document_with_response_api(self, document_path: str) -> InvoiceData:
+    def encode_pdf_to_base64(self, file_path: str) -> str:
         """
-        Parse a document using Azure OpenAI Response API with structured output
+        Encode a PDF file to base64 string for direct API input
         
         Args:
-            document_path: Path to the document to parse
+            file_path: Path to the PDF file
+            
+        Returns:
+            str: Base64 encoded content with data URI prefix
+            
+        Raises:
+            FileNotFoundError: If the file does not exist
+            ValueError: If the file is not a PDF
+        """
+        path = Path(file_path)
+        if not path.exists():
+            raise FileNotFoundError(f"Document not found: {file_path}")
+        
+        if path.suffix.lower() != '.pdf':
+            raise ValueError(f"Expected PDF file, got: {path.suffix}")
+        
+        with open(path, 'rb') as f:
+            pdf_bytes = f.read()
+        
+        base64_content = base64.b64encode(pdf_bytes).decode('utf-8')
+        return f"data:application/pdf;base64,{base64_content}"
+    
+    def parse_pdf_with_responses_api(self, document_path: str, prompt: str = None) -> InvoiceData:
+        """
+        Parse a PDF document using Azure OpenAI Responses API with direct file input.
+        
+        This method uses the Responses API to directly send the PDF file to the model
+        without needing to extract text first. The model can process both text content
+        and visual elements (tables, charts, images) from the PDF.
+        
+        Args:
+            document_path: Path to the PDF document to parse
+            prompt: Optional custom prompt. If not provided, uses default invoice parsing prompt.
+            
+        Returns:
+            InvoiceData: Structured invoice data extracted from the document
+            
+        Note:
+            - Requires Azure OpenAI API version 2025-03-01-preview or later
+            - Works with GPT-4o and other vision-capable models
+            - PDF file size limit: 512MB, max 100 pages
+        """
+        path = Path(document_path)
+        if not path.exists():
+            raise FileNotFoundError(f"Document not found: {document_path}")
+        
+        print(f"\n{'='*60}")
+        print(f"Parsing PDF with Responses API: {path.name}")
+        print(f"File size: {path.stat().st_size / 1024:.1f} KB")
+        print(f"{'='*60}\n")
+        
+        # Encode PDF to base64 for direct input
+        file_data = self.encode_pdf_to_base64(document_path)
+        
+        # Default prompt for invoice parsing
+        if prompt is None:
+            prompt = (
+                "Parse this invoice document and extract all relevant information "
+                "into a structured format. Be precise with numbers and dates. "
+                "Extract the invoice number, date, customer information, line items with "
+                "quantities and prices, subtotal, tax, total amount, and payment terms."
+            )
+        
+        # Use Responses API with direct PDF input
+        response = self.client.responses.create(
+            model=self.deployment,
+            input=[
+                {
+                    "role": "user",
+                    "content": [
+                        {
+                            "type": "input_file",
+                            "filename": path.name,
+                            "file_data": file_data,
+                        },
+                        {
+                            "type": "input_text",
+                            "text": prompt,
+                        },
+                    ],
+                }
+            ],
+            text={
+                "format": {
+                    "type": "json_schema",
+                    "name": "invoice_data",
+                    "strict": True,
+                    "schema": InvoiceData.model_json_schema()
+                }
+            }
+        )
+        
+        # Extract the response content
+        response_content = response.output_text
+        parsed_data = json.loads(response_content)
+        
+        # Validate with Pydantic
+        invoice_data = InvoiceData(**parsed_data)
+        
+        return invoice_data
+    
+    def parse_document_with_chat_completions(self, document_path: str) -> InvoiceData:
+        """
+        Parse a document using Azure OpenAI Chat Completions API with structured output.
+        
+        This method extracts text from the document first, then sends it to the Chat
+        Completions API. Use parse_pdf_with_responses_api() for direct PDF input.
+        
+        Args:
+            document_path: Path to the document to parse (supports .pdf and .txt)
             
         Returns:
             InvoiceData: Structured invoice data extracted from the document
@@ -287,7 +398,7 @@ def main():
     """Main function to demonstrate document parsing"""
     print("="*60)
     print("Document Parser Agent Demo")
-    print("Using Microsoft Agent Framework with Azure OpenAI")
+    print("Using Microsoft Agent Framework with Azure OpenAI Responses API")
     print("="*60)
     
     # Initialize the agent
@@ -297,12 +408,13 @@ def main():
     document_path = "sample_invoice.pdf"
     
     try:
-        # Method 1: Using Response API with structured output (Recommended)
+        # Method 1: Using Responses API with direct PDF input (Recommended)
+        # This directly feeds the PDF file to the model without text extraction
         print("\n" + "="*60)
-        print("Method 1: Using Azure OpenAI Response API")
+        print("Method 1: Using Azure OpenAI Responses API (Direct PDF Input)")
         print("="*60)
         
-        invoice_data = agent.parse_document_with_response_api(document_path)
+        invoice_data = agent.parse_pdf_with_responses_api(document_path)
         
         print("\nExtracted Invoice Data:")
         print(f"{'='*60}")
@@ -317,9 +429,19 @@ def main():
         print(f"  Due Date: {invoice_data.due_date}")
         print(f"  Number of Items: {len(invoice_data.items)}")
         
-        # Method 2: Using Microsoft Agent Framework (Alternative approach)
+        # Method 2: Using Chat Completions API with text extraction (Alternative)
         print("\n" + "="*60)
-        print("Method 2: Using Microsoft Agent Framework")
+        print("Method 2: Using Chat Completions API (Text Extraction)")
+        print("="*60)
+        
+        invoice_data_alt = agent.parse_document_with_chat_completions(document_path)
+        print("\nExtracted Invoice Data (via Chat Completions):")
+        print(f"  Invoice #: {invoice_data_alt.invoice_number}")
+        print(f"  Total Amount: ${invoice_data_alt.total:,.2f}")
+        
+        # Method 3: Using Microsoft Agent Framework (Alternative approach)
+        print("\n" + "="*60)
+        print("Method 3: Using Microsoft Agent Framework")
         print("="*60)
         
         result = agent.parse_document_with_agent(document_path)

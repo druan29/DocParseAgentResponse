@@ -1,8 +1,8 @@
 # Microsoft Agent Framework SDK
-azure-ai-agents==0.1.0
+azure-ai-agents>=1.1.0
 
-# Azure OpenAI
-openai>=1.55.0
+# Azure OpenAI (includes Responses API support)
+openai>=2.8.0
 
 # Document processing
 Pillow>=10.0.0
