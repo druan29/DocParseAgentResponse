@@ -16,15 +16,10 @@ from pathlib import Path
 from typing import List, Optional
 from pydantic import BaseModel, Field
 from dotenv import load_dotenv
-from azure.ai.agents import AgentsClient
-from azure.core.credentials import AzureKeyCredential
-from azure.ai.agents.models import (
-    MessageTextContent,
-    RunStatus,
-)
+from agent_framework import ChatAgent
+from agent_framework.azure import AzureOpenAIChatClient
 import openai
 import json
-import time
 from pypdf import PdfReader
 
 # Load environment variables
@@ -78,14 +73,15 @@ class DocumentParserAgent:
             api_version=self.api_version
         )
         
-        # Initialize AI Agents client
-        self.agents_client = AgentsClient(
+        # Initialize Azure OpenAI Chat Client for Agent Framework
+        self.chat_client = AzureOpenAIChatClient(
+            api_key=self.api_key,
             endpoint=self.endpoint,
-            credential=AzureKeyCredential(self.api_key)
+            deployment_name=self.deployment,
+            api_version=self.api_version
         )
         
         self.agent = None
-        self.thread = None
     
     def create_agent(self, name: str = "Document Parser", instructions: str = None):
         """Create an AI agent for document parsing"""
@@ -96,20 +92,14 @@ class DocumentParserAgent:
                 "and extract all relevant information according to the specified schema."
             )
         
-        self.agent = self.agents_client.create_agent(
-            model=self.deployment,
+        self.agent = ChatAgent(
+            chat_client=self.chat_client,
             name=name,
             instructions=instructions
         )
         
-        print(f"Created agent: {self.agent.id}")
+        print(f"Created agent: {name}")
         return self.agent
-    
-    def create_thread(self):
-        """Create a new conversation thread"""
-        self.thread = self.agents_client.create_thread()
-        print(f"Created thread: {self.thread.id}")
-        return self.thread
     
     def read_document(self, file_path: str) -> str:
         """
@@ -247,68 +237,6 @@ class DocumentParserAgent:
         
         return invoice_data
     
-    def parse_document_with_chat_completions(self, document_path: str) -> InvoiceData:
-        """
-        Parse a document using Azure OpenAI Chat Completions API with structured output.
-        
-        This method extracts text from the document first, then sends it to the Chat
-        Completions API. Use parse_pdf_with_responses_api() for direct PDF input.
-        
-        Args:
-            document_path: Path to the document to parse (supports .pdf and .txt)
-            
-        Returns:
-            InvoiceData: Structured invoice data extracted from the document
-        """
-        # Read the document
-        document_content = self.read_document(document_path)
-        
-        print(f"\n{'='*60}")
-        print("Document Content Preview:")
-        print(f"{'='*60}")
-        print(document_content[:500] + "..." if len(document_content) > 500 else document_content)
-        print(f"{'='*60}\n")
-        
-        # Prepare the prompt
-        prompt = (
-            f"Parse the following invoice document and extract all relevant information "
-            f"into a structured format. Be precise with numbers and dates.\n\n"
-            f"Document content:\n{document_content}\n\n"
-            f"Extract the invoice information according to the provided schema."
-        )
-        
-        # Use Response API with structured output
-        completion = self.client.chat.completions.create(
-            model=self.deployment,
-            messages=[
-                {
-                    "role": "system",
-                    "content": "You are a precise document parser that extracts structured information from invoices."
-                },
-                {
-                    "role": "user",
-                    "content": prompt
-                }
-            ],
-            response_format={
-                "type": "json_schema",
-                "json_schema": {
-                    "name": "invoice_data",
-                    "strict": True,
-                    "schema": InvoiceData.model_json_schema()
-                }
-            }
-        )
-        
-        # Parse the response
-        response_content = completion.choices[0].message.content
-        parsed_data = json.loads(response_content)
-        
-        # Validate with Pydantic
-        invoice_data = InvoiceData(**parsed_data)
-        
-        return invoice_data
-    
     def parse_document_with_agent(self, document_path: str) -> dict:
         """
         Parse a document using Microsoft Agent Framework
@@ -318,80 +246,36 @@ class DocumentParserAgent:
             
         Returns:
             dict: Extracted information from the document
+            
+        Raises:
+            RuntimeError: If the agent fails to process the document
         """
-        # Ensure agent and thread are created
+        # Ensure agent is created
         if self.agent is None:
             self.create_agent()
-        
-        if self.thread is None:
-            self.create_thread()
         
         # Read the document
         document_content = self.read_document(document_path)
         
         # Create a message with the document content
-        message = self.agents_client.create_message(
-            thread_id=self.thread.id,
-            role="user",
-            content=f"""Please parse this invoice and extract structured information:
+        user_message = f"""Please parse this invoice and extract structured information:
 
 {document_content}
 
 Extract: invoice number, date, customer information, line items, totals, and payment terms."""
-        )
         
-        # Run the agent
-        run = self.agents_client.create_run(
-            thread_id=self.thread.id,
-            agent_id=self.agent.id
-        )
-        
-        # Wait for completion with timeout
-        max_retries = 60  # Maximum 60 seconds
-        retry_count = 0
-        while run.status in [RunStatus.QUEUED, RunStatus.IN_PROGRESS]:
-            if retry_count >= max_retries:
-                raise TimeoutError(
-                    f"Agent run timed out after {max_retries} seconds. "
-                    f"Run ID: {run.id}, Status: {run.status}"
-                )
-            time.sleep(1)
-            retry_count += 1
-            run = self.agents_client.get_run(
-                thread_id=self.thread.id,
-                run_id=run.id
-            )
-        
-        # Get the response messages
-        messages = self.agents_client.list_messages(thread_id=self.thread.id)
-        
-        # Extract the assistant's response
-        response_messages = [
-            msg for msg in messages.data 
-            if msg.role == "assistant" and msg.run_id == run.id
-        ]
-        
-        if response_messages:
-            latest_message = response_messages[0]
-            if latest_message.content:
-                for content in latest_message.content:
-                    if isinstance(content, MessageTextContent):
-                        return {"response": content.text.value}
-        
-        return {"response": "No response from agent"}
+        # Run the agent and get response with error handling
+        try:
+            response = self.agent.run(user_message)
+            return {"response": response}
+        except Exception as e:
+            raise RuntimeError(f"Agent failed to process document: {str(e)}") from e
     
     def cleanup(self):
         """Clean up resources"""
-        try:
-            if self.thread:
-                self.agents_client.delete_thread(self.thread.id)
-                print(f"Deleted thread: {self.thread.id}")
-            
-            if self.agent:
-                self.agents_client.delete_agent(self.agent.id)
-                print(f"Deleted agent: {self.agent.id}")
-        except Exception as e:
-            print(f"Error during cleanup: {e}")
+        # The new agent-framework doesn't require explicit cleanup
+        # Resources are managed automatically
+        print("Cleanup completed.")
 
 
 def main():
@@ -429,19 +313,9 @@ def main():
         print(f"  Due Date: {invoice_data.due_date}")
         print(f"  Number of Items: {len(invoice_data.items)}")
         
-        # Method 2: Using Chat Completions API with text extraction (Alternative)
+        # Method 2: Using Microsoft Agent Framework (Alternative approach)
         print("\n" + "="*60)
-        print("Method 2: Using Chat Completions API (Text Extraction)")
-        print("="*60)
-        
-        invoice_data_alt = agent.parse_document_with_chat_completions(document_path)
-        print("\nExtracted Invoice Data (via Chat Completions):")
-        print(f"  Invoice #: {invoice_data_alt.invoice_number}")
-        print(f"  Total Amount: ${invoice_data_alt.total:,.2f}")
-        
-        # Method 3: Using Microsoft Agent Framework (Alternative approach)
-        print("\n" + "="*60)
-        print("Method 3: Using Microsoft Agent Framework")
+        print("Method 2: Using Microsoft Agent Framework")
         print("="*60)
         
         result = agent.parse_document_with_agent(document_path)

@@ -1,5 +1,5 @@
-# Microsoft Agent Framework SDK
-azure-ai-agents>=1.1.0
+# Microsoft Agent Framework SDK (pre-release)
+agent-framework --pre
 
 # Azure OpenAI (includes Responses API support)
 openai>=2.8.0
