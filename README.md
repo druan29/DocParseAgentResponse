@@ -5,10 +5,10 @@ Sample code demonstrating how to create an AI agent using the Microsoft Agent Fr
 ## Features
 
 - **Direct PDF Input**: Feed PDF files directly to the model via Responses API (no text extraction needed)
-- **Microsoft Agent Framework SDK**: Uses the official Azure AI Agents SDK for Python
+- **Microsoft Agent Framework SDK**: Uses the official `agent-framework` package (pre-release)
 - **Azure OpenAI Responses API**: Leverages the new Responses API for multimodal document processing
 - **Structured Outputs**: Extracts information into well-defined Pydantic models
-- **Three Approaches**: Demonstrates Responses API (direct PDF), Chat Completions, and Agent Framework methods
+- **Two Approaches**: Demonstrates Responses API (direct PDF) and Agent Framework methods
 - **Document Parsing**: Processes PDF documents and extracts structured data (e.g., invoices)
 
 ## Requirements
@@ -62,7 +62,7 @@ The script will:
 2. **Parse it using Azure OpenAI Responses API with direct PDF input** (recommended)
 3. Extract invoice details into a structured format
 4. Display the parsed results
-5. Demonstrate alternative approaches (Chat Completions and Agent Framework)
+5. Demonstrate Agent Framework approach as an alternative
 
 ## Project Structure
 
@@ -84,10 +84,8 @@ The main class that implements document parsing functionality:
 
 - `__init__()`: Initializes Azure OpenAI and Agent Framework clients
 - `create_agent()`: Creates an AI agent with specific instructions
-- `create_thread()`: Creates a conversation thread for the agent
 - `encode_pdf_to_base64()`: Encodes PDF files to base64 for direct API input
 - `parse_pdf_with_responses_api()`: **Parses PDFs using Responses API with direct file input (recommended)**
-- `parse_document_with_chat_completions()`: Parses documents using Chat Completions API (text extraction)
 - `parse_document_with_agent()`: Parses documents using the Agent Framework
 - `cleanup()`: Cleans up resources
 
@@ -98,7 +96,7 @@ The code uses Pydantic models to define the structure of extracted data:
 - `InvoiceData`: Main model for invoice information
 - `InvoiceItem`: Model for individual line items
 
-### Three Parsing Approaches
+### Two Parsing Approaches
 
 1. **Responses API with Direct PDF Input (Recommended)**: 
    - Uses `client.responses.create()` with direct PDF file input via base64 encoding
@@ -106,12 +104,7 @@ The code uses Pydantic models to define the structure of extracted data:
    - Supports visual elements (tables, charts, images) in PDFs
    - Best for multimodal document processing
 
-2. **Chat Completions API**: 
-   - Traditional approach using `chat.completions.create()`
-   - Requires text extraction from PDF first
-   - Good for text-heavy documents
-
-3. **Agent Framework**: 
+2. **Agent Framework**: 
    - Uses Microsoft Agent Framework for complex agent-based workflows
    - Supports multi-turn conversations and tool use
 
