@@ -18,9 +18,12 @@ from pydantic import BaseModel, Field
 from dotenv import load_dotenv
 from agent_framework import ChatAgent
 from agent_framework.azure import AzureOpenAIChatClient
+from agent_framework.azure import AzureOpenAIResponsesClient
+from azure.identity import AzureCliCredential
 import openai
 import json
 from pypdf import PdfReader
+import asyncio
 
 # Load environment variables
 load_dotenv()
@@ -55,7 +58,7 @@ class DocumentParserAgent:
         """Initialize the Document Parser Agent with Azure OpenAI credentials"""
         self.endpoint = os.getenv("AZURE_OPENAI_ENDPOINT")
         self.api_key = os.getenv("AZURE_OPENAI_API_KEY")
-        self.deployment = os.getenv("AZURE_OPENAI_DEPLOYMENT", "gpt-4o")
+        self.deployment = os.getenv("AZURE_OPENAI_DEPLOYMENT")
         # Note: Using preview API version for Responses API support.
         # Responses API requires 2025-03-01-preview or later
         self.api_version = os.getenv("AZURE_OPENAI_API_VERSION", "2025-03-01-preview")
@@ -67,11 +70,12 @@ class DocumentParserAgent:
             )
         
         # Initialize Azure OpenAI client for Responses API
-        self.client = openai.AzureOpenAI(
-            azure_endpoint=self.endpoint,
-            api_key=self.api_key,
-            api_version=self.api_version
-        )
+        self.response_client = AzureOpenAIResponsesClient(credential=AzureCliCredential())
+        #self.client = openai.AzureOpenAI(
+        #    azure_endpoint=self.endpoint,
+        #    api_key=self.api_key,
+        #    api_version=self.api_version
+        #)
         
         # Initialize Azure OpenAI Chat Client for Agent Framework
         self.chat_client = AzureOpenAIChatClient(
@@ -92,11 +96,13 @@ class DocumentParserAgent:
                 "and extract all relevant information according to the specified schema."
             )
         
-        self.agent = ChatAgent(
-            chat_client=self.chat_client,
-            name=name,
-            instructions=instructions
-        )
+        self.agent = self.response_client.create_agent(name=name,
+                                                       instructions=instructions)
+        #self.agent = ChatAgent(
+        #    chat_client=self.chat_client,
+        #    name=name,
+        #    instructions=instructions
+        #)
         
         print(f"Created agent: {name}")
         return self.agent
@@ -237,7 +243,7 @@ class DocumentParserAgent:
         
         return invoice_data
     
-    def parse_document_with_agent(self, document_path: str) -> dict:
+    async def parse_document_with_agent(self, document_path: str) -> dict:
         """
         Parse a document using Microsoft Agent Framework
         
@@ -266,7 +272,8 @@ Extract: invoice number, date, customer information, line items, totals, and pay
         
         # Run the agent and get response with error handling
         try:
-            response = self.agent.run(user_message)
+            response = await self.agent.run(user_message)
+            print(f"Response: {response}\n")
             return {"response": response}
         except Exception as e:
             raise RuntimeError(f"Agent failed to process document: {str(e)}") from e
@@ -294,33 +301,34 @@ def main():
     try:
         # Method 1: Using Responses API with direct PDF input (Recommended)
         # This directly feeds the PDF file to the model without text extraction
-        print("\n" + "="*60)
-        print("Method 1: Using Azure OpenAI Responses API (Direct PDF Input)")
-        print("="*60)
+        #print("\n" + "="*60)
+        #print("Method 1: Using Azure OpenAI Responses API (Direct PDF Input)")
+        #print("="*60)
         
-        invoice_data = agent.parse_pdf_with_responses_api(document_path)
+        #invoice_data = agent.parse_pdf_with_responses_api(document_path)
         
-        print("\nExtracted Invoice Data:")
-        print(f"{'='*60}")
-        print(json.dumps(invoice_data.model_dump(), indent=2))
-        print(f"{'='*60}")
+        #print("\nExtracted Invoice Data:")
+        #print(f"{'='*60}")
+        #print(json.dumps(invoice_data.model_dump(), indent=2))
+        #print(f"{'='*60}")
         
         # Display summary
-        print("\nInvoice Summary:")
-        print(f"  Invoice #: {invoice_data.invoice_number}")
-        print(f"  Customer: {invoice_data.customer_name}")
-        print(f"  Total Amount: ${invoice_data.total:,.2f}")
-        print(f"  Due Date: {invoice_data.due_date}")
-        print(f"  Number of Items: {len(invoice_data.items)}")
+        #print("\nInvoice Summary:")
+        #print(f"  Invoice #: {invoice_data.invoice_number}")
+        #print(f"  Customer: {invoice_data.customer_name}")
+        #print(f"  Total Amount: ${invoice_data.total:,.2f}")
+        #print(f"  Due Date: {invoice_data.due_date}")
+        #print(f"  Number of Items: {len(invoice_data.items)}")
         
         # Method 2: Using Microsoft Agent Framework (Alternative approach)
         print("\n" + "="*60)
         print("Method 2: Using Microsoft Agent Framework")
         print("="*60)
         
-        result = agent.parse_document_with_agent(document_path)
+        result = asyncio.run(agent.parse_document_with_agent(document_path))
         print("\nAgent Response:")
-        print(result.get("response", "No response"))
+        #print(result.get("response", "No response"))
+        print(result)
         
     except Exception as e:
         print(f"\nError: {e}")
