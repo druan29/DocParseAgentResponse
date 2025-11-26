@@ -246,6 +246,9 @@ class DocumentParserAgent:
             
         Returns:
             dict: Extracted information from the document
+            
+        Raises:
+            RuntimeError: If the agent fails to process the document
         """
         # Ensure agent is created
         if self.agent is None:
@@ -261,10 +264,12 @@ class DocumentParserAgent:
 
 Extract: invoice number, date, customer information, line items, totals, and payment terms."""
         
-        # Run the agent and get response
-        response = self.agent.run(user_message)
-        
-        return {"response": response}
+        # Run the agent and get response with error handling
+        try:
+            response = self.agent.run(user_message)
+            return {"response": response}
+        except Exception as e:
+            raise RuntimeError(f"Agent failed to process document: {str(e)}") from e
     
     def cleanup(self):
         """Clean up resources"""
