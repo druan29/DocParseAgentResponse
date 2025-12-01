@@ -299,28 +299,7 @@ def main():
     document_path = "sample_invoice.pdf"
     
     try:
-        # Method 1: Using Responses API with direct PDF input (Recommended)
-        # This directly feeds the PDF file to the model without text extraction
-        #print("\n" + "="*60)
-        #print("Method 1: Using Azure OpenAI Responses API (Direct PDF Input)")
-        #print("="*60)
-        
-        #invoice_data = agent.parse_pdf_with_responses_api(document_path)
-        
-        #print("\nExtracted Invoice Data:")
-        #print(f"{'='*60}")
-        #print(json.dumps(invoice_data.model_dump(), indent=2))
-        #print(f"{'='*60}")
-        
-        # Display summary
-        #print("\nInvoice Summary:")
-        #print(f"  Invoice #: {invoice_data.invoice_number}")
-        #print(f"  Customer: {invoice_data.customer_name}")
-        #print(f"  Total Amount: ${invoice_data.total:,.2f}")
-        #print(f"  Due Date: {invoice_data.due_date}")
-        #print(f"  Number of Items: {len(invoice_data.items)}")
-        
-        # Method 2: Using Microsoft Agent Framework (Alternative approach)
+        # Using Microsoft Agent Framework (Alternative approach)
         print("\n" + "="*60)
         print("Method 2: Using Microsoft Agent Framework")
         print("="*60)

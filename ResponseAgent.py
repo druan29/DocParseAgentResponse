@@ -1,13 +1,16 @@
 # Copyright (c) Microsoft. All rights reserved.
 
 import asyncio
+import base64
+from pathlib import Path
 from random import randint
-from typing import Annotated
+from typing import Annotated, List, Optional
 
 from agent_framework.azure import AzureOpenAIResponsesClient
 from azure.identity import AzureCliCredential
 from dotenv import load_dotenv
-from pydantic import Field
+from pydantic import BaseModel, Field
+from pypdf import PdfReader
 
 """
 Azure OpenAI Responses Client Basic Example
@@ -19,57 +22,107 @@ response generation, showing both streaming and non-streaming responses.
 # Load environment variables
 load_dotenv()
 
-
-def get_weather(
-    location: Annotated[str, Field(description="The location to get the weather for.")],
-) -> str:
-    """Get the weather for a given location."""
-    conditions = ["sunny", "cloudy", "rainy", "stormy"]
-    return f"The weather in {location} is {conditions[randint(0, 3)]} with a high of {randint(10, 30)}°C."
-
-
-async def non_streaming_example() -> None:
-    """Example of non-streaming response (get the complete result at once)."""
-    print("=== Non-streaming Response Example ===")
-
-    # For authentication, run `az login` command in terminal or replace AzureCliCredential with preferred
-    # authentication option.
-    agent = AzureOpenAIResponsesClient(credential=AzureCliCredential()).create_agent(
-        instructions="You are a helpful weather agent.",
-        tools=get_weather,
-    )
-
-    query = "What's the weather like in Seattle?"
-    print(f"User: {query}")
-    result = await agent.run(query)
-    print(f"Result: {result}\n")
+class InvoiceItem(BaseModel):
+    """Represents a single line item in an invoice"""
+    item: str = Field(description="The name or description of the item")
+    quantity: float = Field(description="The quantity of the item")
+    unit_price: float = Field(description="The price per unit")
+    total: float = Field(description="The total price for this line item")
 
 
-async def streaming_example() -> None:
-    """Example of streaming response (get results as they are generated)."""
-    print("=== Streaming Response Example ===")
+class InvoiceData(BaseModel):
+    """Structured output for invoice information"""
+    invoice_number: str = Field(description="The invoice number")
+    date: str = Field(description="The invoice date")
+    customer_name: str = Field(description="The name of the customer/company being billed")
+    customer_address: str = Field(description="The customer's address")
+    items: List[InvoiceItem] = Field(description="List of items in the invoice")
+    subtotal: float = Field(description="The subtotal amount before tax")
+    tax: float = Field(description="The tax amount")
+    total: float = Field(description="The total amount due")
+    due_date: str = Field(description="The payment due date")
+    payment_terms: Optional[str] = Field(default=None, description="Payment terms")
 
-    # For authentication, run `az login` command in terminal or replace AzureCliCredential with preferred
-    # authentication option.
-    agent = AzureOpenAIResponsesClient(credential=AzureCliCredential()).create_agent(
-        instructions="You are a helpful weather agent.",
-        tools=get_weather,
-    )
 
-    query = "What's the weather like in Portland?"
-    print(f"User: {query}")
-    print("Agent: ", end="", flush=True)
-    async for chunk in agent.run_stream(query):
-        if chunk.text:
-            print(chunk.text, end="", flush=True)
-    print("\n")
+# Path to sample document
+document_path = "sample_invoice.pdf"
 
+instructions = (
+                "You are a document parser agent. Your task is to extract "
+                "structured information from documents. Analyze the document content carefully "
+                "and extract all relevant information according to the specified schema."
+            )
+
+response_client = AzureOpenAIResponsesClient(credential=AzureCliCredential()
+                                             )
+def read_document(file_path: str) -> str:
+        """
+        Read document content from file (supports .txt and .pdf)
+        
+        Args:
+            file_path: Path to the document file
+            
+        Returns:
+            str: Extracted text content from the document
+            
+        Raises:
+            FileNotFoundError: If the document file does not exist
+            ValueError: If the PDF cannot be read or is corrupted
+        """
+        path = Path(file_path)
+        if not path.exists():
+            raise FileNotFoundError(f"Document not found: {file_path}")
+        
+        # Handle PDF files
+        if path.suffix.lower() == '.pdf':
+            try:
+                reader = PdfReader(path)
+                return '\n'.join(page.extract_text() for page in reader.pages)
+            except Exception as e:
+                raise ValueError(f"Failed to read PDF file '{file_path}': {str(e)}")
+        
+        # Handle text files
+        with open(path, 'r', encoding='utf-8') as f:
+            return f.read()
+
+async def parse_document_with_agent(document_path: str) -> dict:
+        """
+        Parse a document using Microsoft Agent Framework
+        
+        Args:
+            document_path: Path to the document to parse
+            
+        Returns:
+            dict: Extracted information from the document
+            
+        Raises:
+            RuntimeError: If the agent fails to process the document
+        """
+        # Create an agent with AOAI Response Client
+        agent = response_client.create_agent(instructions=instructions)
+        
+        # Read the document
+        document_content = read_document(document_path)
+        
+        # Create a message with the document content
+        user_message = f"""Please parse this invoice and extract structured information:
+
+{document_content}
+
+Extract: invoice number, date, customer information, line items, totals, and payment terms."""
+        
+        # Run the agent and get response with error handling
+        try:
+            response = await agent.run(user_message, response_format=InvoiceData)
+            print(f"Response: {response}\n")
+            print(response)
+            return {"response": response}
+        except Exception as e:
+            raise RuntimeError(f"Agent failed to process document: {str(e)}") from e
 
 async def main() -> None:
-    print("=== Basic Azure OpenAI Responses Client Agent Example ===")
-
-    await non_streaming_example()
-    await streaming_example()
+    print("=== Azure OpenAI Responses Client Agent Example ===")
+    await parse_document_with_agent(document_path)
 
 
 if __name__ == "__main__":
