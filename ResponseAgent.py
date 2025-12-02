@@ -1,4 +1,15 @@
 # Copyright (c) Microsoft. All rights reserved.
+"""
+Document Parser Agent using Microsoft Agent Framework
+
+This script demonstrates how to create an agent that extracts structured information
+from documents using Azure OpenAI's gpt-4o multimodal model with Responses API.
+
+Features:
+- Direct PDF file input via Responses API
+- Structured output using Pydantic models
+- Microsoft Agent Framework integration
+"""
 
 import asyncio
 import base64

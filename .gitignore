@@ -38,3 +38,8 @@ ENV/
 # OS
 .DS_Store
 Thumbs.db
+
+# Flask
+uploads/
+instance/
+.webassets-cache
